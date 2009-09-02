@@ -1,0 +1,197 @@
+<html>
+<title>pexec</title>
+
+<script type="text/javascript"></script>
+
+<style type="text/css">
+</style>
+
+<body>
+
+<blockquote>
+
+<h3>PEXC - összefoglaló</h3>
+
+<h4>Bevezetõ</h4>
+
+<p align="justify">
+A <tt>pexec</tt> program alapfeladata egy megadott parancs és/vagy 
+shell-szkript futtatása párhuzamosított környezetben. A programmal egyszerûen
+lehet a megszokott, szkripteknél használatos eszközöket (ciklusszervezés,
+átirányítások, pipe-ok, formázás) kombinálni a párhozamos futtatás
+adta elõnyökkel. A programnak alapjában 3 fajta használati módja 
+lehet:</p>
+<ul>
+<li><p align="justify">
+Egy adott parancs és/vagy szkript futtatása a lokális gépen, kihasználva
+a gépben levõ több prosszeszor(mag)ot. Ehhez a <tt>pexec</tt> programon
+kívül további speciális elrendezés (egyéb program, hálozati konfiguráció)
+nem szükséges. Ebben a módban a párhozamosítás a 
+	<blockquote>
+	<tt>for variable in &lt;set&gt; ; do &lt;command&gt; ; done</tt> 
+	</blockquote>
+<p align="justify">
+ciklushoz hasonlóan fut le, amennyiben a ciklusszervezést lecseréljük
+a megfelelõ <tt>pexec</tt>-hívásra. Az egyedi illetve az összesített
+kimenetek átírányítása (file-okba, pipe-okba) és átformázása is megoldható,
+ezutóbbira a kimenetek potenciális keveredése miatt lehet szükség.
+<li><p align="justify">
+Egy adott parancs és/vagy szkript futtatása távoli gépeken,
+egy remote shell segítségével. Ebben a módban a <tt>pexec</tt> programon
+kívül szükség van egy shell-re, ami a távoli gépekre a bejelentkezést,
+autentikációt és az egyedi programok végrehajtását végzi (gyakorlatban
+ez az <tt>ssh</tt>, így garantált a hálózati forgalom biztonsága is).
+Ebben a módban az egyedi parancsok minden egyes távoli gépen, egy példányban
+futnak le. A kimenetek átirányítása és átformázására az elõzõ esethez hasonlóan
+szintén van lehetõség.
+<li><p align="justify">
+Egy adott parancs és/vagy szkript futtatása lokális és távoli gépeken,
+úgy hogy a futtatandó parancsot minden egyes gépre ki lehet osztani.
+A hálózati forgalom átirányítását, bejelentkezést és autentikációt 
+itt is egy remote shell (<tt>ssh</tt>) látja el, ezentúl azonban
+minden egyes gépen rendelkezésre kell állnia a <tt>pexec</tt> programnak,
+mely a lokális elosztást és átirányításokat kezeli le, valamit persze
+a megfelelõ parancsokhoz szükséges egyedi programoknak is rendelkezésre
+kell állnia, egymással kölcsönösen ekvivalens módon (hiszen egyrészt semmi
+nem garantálja hogy a parancs egy adott példánya melyik gépen is fog 
+lefutni, másrészt a kiosztás sorrendje függ a pillanatnyi 
+terheléstõl is).
+</ul>
+
+<p align="justify">
+A fenti funkcionalitásokat ki lehet egészíteni (mind lokális, mind 
+távoli futtatások esetén, azaz az összes futtatási módban) egyfajta
+távirányítással is. Ekkor a (vezérlõ)program hálózati vagy UNIX domain socketen
+keresztül vezérelhetõ. A vezérlés a következõket takarja:
+<ul>
+<li>
+a pillanatnyi státusznak, azaz: a futtatandó feladatok számának, 
+már elvégzett és/vagy függõben levõ feladatok számának lekérdezése;
+<li>
+kölcsönös kizárás (mutual extension-ok, mutex-ek) 
+megvalósítása, zárolás (lock) illetve a zárolások elengedése (unlock);
+<li>
+file-ok kiiratása illetve file-ba való mentés, kölcsönösen kizárt módon;
+<li>
+atomi, azaz kölcsönösen kizárt parancsok indítása.
+</ul>
+A vezérlést lehet "kézzel" is csinálni (<tt>netcat</tt> vagy <tt>socket</tt>
+vagy valami hasonló programmal), azonban a fenti feladatok
+közvetlenül a <tt>pexec</tt> program távvezérlõ módban történõ
+indításával egyszerûen megvalósíthatóak (transzparensen is, azaz
+távoli gépeken való eloszott futtatásnál automatikusan történik a vezérlés
+átadása).
+
+<h4>Részletes leírás, specifikáció</h4>
+
+Egyelõre csak angolul, lásd itt: <a href="man/pexec.1.html">pexec.1.html</a>.
+
+<h4>Példák</h4>
+
+<i>Identikus futtatás:</i>
+<blockquote>
+Amennyiben semmilyen opciót nem adunk meg, csak az indítandó parancsot
+(és azok argumentumait), a <tt>pexec</tt> program egyszerûen elindítja
+a programot, a helyi gépen, egy példányban -- mintha nem is lenne a
+<tt>pexec</tt> az adott parancshívás elõtt:
+	<pre>
+	pexec ssh -X -l user host
+	</pre>
+</blockquote>
+
+<i>Néhány szám négyzetgyökének kiszámítása:</i>
+<blockquote>
+Az alábbi hívás a <tt>bc</tt> program segítségével kiszámítja az 1 és 10
+közötti egész számok négyzetgyökét (10000 tizedesjegyre) és az eredményt
+egyedi fileokba (<tt>sqrt-1.dat</tt>, ..., <tt>sqrt-10.dat</tt>) irányítja át:
+	<pre>
+	pexec -o sqrt-%s.dat -r `seq 10` -e NUM -n 4 -c 'echo "scale=10000;sqrt($NUM)" | bc'
+	</pre>
+A fenti hívás a futtatásokat 4 szálra (<tt>-n 4</tt>) bontja szét,
+a gépben levõ processzorok/magok számától függetlenül. Az egyes konkrét
+szám-értékeket a <tt>NUM</tt> környezeti változó segítségével adja át
+a futtatandó <tt>echo | bc</tt> pipeline-nak. Ez a hívás tehát egyenértékû a 
+	<pre>
+	for NUM in `seq 10` ; do 
+		echo "scale=10000;sqrt($NUM)" | bc &gt;sqrt-$NUM.dat
+	done
+	</pre>
+shell-ciklussal.
+</blockquote>
+
+<i>File-ok tartalmának sorbarendezése:</i>
+<blockquote>
+Az alábbi példa a megadott file-ok sorait egyenként sorbarendezi, a kimenetet
+a <tt>*.sort</tt> file-okba tárolja el:
+	<pre>
+	pexec -r myfiles*.ext -i %s -o %s.sort -- sort
+	</pre>
+A <tt>--</tt> elválasztó csak a könnyebb olvashatóság kedvéért van kiírva
+(azaz hogy a <tt>pexec</tt> saját argumentumai illetve a futtatandó 
+parancs és/vagy szkript jól elkülöníthetõ legyen). Az egyenértékû shell-ciklus:
+	<pre>
+	for f in myfiles*.ext ; do
+		sort &lt;$f &gt;$f.sort
+	done
+	</pre>
+</blockquote>
+
+<i>PNG típusú képek JPEG formátumba való konverziója:</i>
+<blockquote>
+Az alábbi két példa a konverziót rendre az ImageMagick/<tt>convert</tt>
+illetve a NetPBM csomag segítségével oldja meg:
+	<pre>
+	pexec -r *.png -e IMG -c 'convert $IMG ${IMG%.png}.jpeg'
+	</pre>
+	<pre>
+	pexec -r *.png -i %s -o %s.jpeg -c 'pngtopnm | pnmtojpeg'
+	</pre>
+Az elõbbi esetben a belsõ shell-parancs lecseréli a kiterjesztést 
+<tt>png</tt>-rõl <tt>jpeg</tt>-re, míg az utóbbi esetben a <tt>*.jpeg</tt>
+kiterjesztést a már meglevõ teljes file-névhez hozzábiggyeszti (így
+a kimeneti filáok kiterjesztése <tt>*.png.jpeg</tt> lesz).
+</blockquote>
+
+<i>JPEG formátumú képek átméretezése:</i>
+<blockquote>
+Az alábbi példa az átméretezésen túl demonstrálja a kölcsönösen kizárt
+file-ba írás/olvasás megvalósítását is. Általában ez akkor hasznos, ha
+a sok processzoron (illetve több távoli gépen) dolgozunk egyszerre és
+az egyes futtatások ugyanarról a háttértárolóról dolgoznak. Ebben az esetben
+ugyanis a párhuzamos terhelés nagyon lelassítja a futtatásokat (random
+elérés, sok I/O wait, ...). A példában mind az írás mind az olvasás
+egy-egy mutex segítségével blokkolható olyan szintre, hogy egyszerre
+csak egy szál férhet hozzá a diszkhez.
+	<pre>
+	pexec -n 8 -r *.jpg -y unix -e IMG -c \
+		'pexec -j -m blockread -d $IMG | \
+		jpegtopnm | pnmscale 0.5 | pnmtojpeg | \
+		pexec -j -m blockwrite -s th_$IMG'
+	</pre>
+A példa két mutex-et használ, a <tt>blockread</tt> és a <tt>blockwrite</tt>
+nevezetût. E kettõ garantálja, hogy egyszerre csak egy szál olvasson
+illetve írjon a diszkre. Amennyiben az írás és az olvasás is ki kell, hogy 
+zárja egymást, ugyanazt a mutex-et kell megadni az olvasás és az írás
+során egyaránt. 
+</blockquote>
+
+<i>Rendszerfrissítés több gépen:</i>
+<blockquote>
+
+Az alábbi példa egy egyszerû frissítést (Debian alatt, 
+<tt>apt-get -y upgrade</tt>) mutat be, egyszerre több gépen:
+	<pre>
+	pexec -n alpha,beta,gamma,delta apt-get -y upgrade
+	</pre>
+A fenti példa a parancsot párhuzamosan lefuttatja az <tt>alpha</tt>,
+<tt>beta</tt>, <tt>gamma</tt> valamint a <tt>delta</tt> nevezetû
+gépeken. Ahhoz, hogy a fenti párhuzamosított parancs kavarodás nélkül lefusson,
+a remote shell-en (<tt>ssh</tt>-n) keresztüli bejelentkezésnek és autentikációnak
+interaktivitás-mentesnek kell lennie. Amennyiben iterakcióra van szükség
+(pl. jelszó megadására), a remote shell blokkolni fogja a futtatást, amíg
+a jelszót/jelszavakat meg nem adjuk. Mivel a standard input-ot minden egyes
+szál örökli, a jelszó megadása is összekeveredhet az egyes gépek esetében.
+</blockquote>
+
+</body>
+</html>

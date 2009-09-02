@@ -1,0 +1,704 @@
+<html lang="en">
+<head>
+<title>pexec</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="pexec">
+<meta name="generator" content="makeinfo 4.11">
+<link title="Top" rel="top" href="#Top">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<div class="node">
+<p><hr>
+<a name="Top"></a>
+Up:&nbsp;<a rel="up" accesskey="u" href="#dir">(dir)</a>
+
+</div>
+
+<h2 class="unnumbered">pexec</h2>
+
+<h2 class="chapter">1 General information</h2>
+
+<h3 class="section">1.1 Name</h3>
+
+<p><code>pexec</code> - execute commands or shell scripts in parallel on a single
+host or on remote hosts using a remote shell
+
+<h3 class="section">1.2 Description</h3>
+
+<p>This manual page documents briefly the <code>pexec</code> program. <code>pexec</code>
+executes in parallel the given command or shell script (e.g. parsed
+by <code>/bin/sh</code>) on the local host or on remote hosts,
+while some of the execution parameters, namely the redirected standard input,
+output or error and environmental variables can be varied.
+
+   <p>The given program or script is executed as many times as how many
+parameters are specified in the command line or read from a given
+parameter file. Each parameter is a simple string which can be used
+either to pass to the program/script as the value of an environmental variable
+or it can be used in the format of the file names where the
+standard input, output or error are optionally redirected from or to.
+
+   <p>Moreover, more than one shell command script can also be passed to
+parallel execution, in this case there is no need for parameters or the number
+of the parameters taken from command line (or read from a parameter file)
+must be the same as the number of the distinct shell command scripts.
+
+   <p>The program is capable to automatically swallow the standard output and
+error (to <code>/dev/null</code>), or collecting them via pipes and dump to the
+invoker's standard output or error (with optional line headers or trailers which
+can be used to distinguish between the output of the distinctive processes).
+
+   <p>The execution on remote hosts is done using a remote shell which
+both builds a tunnel between the invoking and the remote host(s) and
+do the authentication and ensures the security (if a secure remote shell
+is used). Hence, there is no need to run standalone daemons on the
+remote side: the remote shell itself executes the <code>pexec</code> program
+in daemon mode when the standard input and output of the latter is bound
+to the remote shell to form a (secure and authenticated) tunnel. See
+the appropriate section below for a more detailed explanation.
+
+   <p>In order to avoid unexpected I/O load or to synchronize individual
+tasks, <code>Bpexec</code> supports mutual exclusions
+(<i>mutex</i>es) and atomic command executions. 
+The maximum number of simultaneous tasks can be controlled by a
+hypervisor daemon: with such a daemon, concurrent
+<code>pexec</code> instances can start without an unexpectedly high load.
+
+<h3 class="section">1.3 Synopsys</h3>
+
+<p>General invocation:
+
+   <p><code>pexec [options] [--] command [arguments]</code>
+
+   <p><code>pexec [options] -c [--] script</code>
+
+<p class="noindent">or
+
+   <p><code>pexec [options] -m [--] 'script1' ['script2'...]</code>
+
+<p class="noindent">Remote control, mutual exclusions and atomic command exectuion:
+
+   <p><code>pexec [-j|--remote] [options]</code>
+
+   <p><code>pexec [-j|--remote] [options] [-l|-u &lt;mutex&gt;]</code>
+
+   <p><code>pexec [-j|--remote] [options] -a -m &lt;mutex&gt; [-c] [--] command [arguments]</code>
+
+<p class="noindent">Hypervisor daemon:
+
+   <p><code>pexec [-H|--hypervisor] [options] start|stop</code>
+
+<h2 class="chapter">2 Command line options</h2>
+
+<h3 class="section">2.1 General options</h3>
+
+     <dl>
+<dt><code>-h, --help</code><dd>Gives general summary about the command line options.
+
+     <br><dt><code>--version</code><dd>Gives some version information about the program.
+
+     <br><dt><code>-s, --shell &lt;</code><i>full shell path</i><code>&gt;</code><dd>Full path (e.g. <code>/bin/sh</code>) of the shell to be used for script execution.
+
+     <br><dt><code>-c, --shell-command</code><dd>Use a shell (see <code>-s|--shell</code> also) to interpret the command(s)
+instead of direct execution.
+
+     <br><dt><code>-m, --multiple-command</code><dd>Allow multiple individual shell command scripts to be executed
+in parallel with the variation of the parameters (see notes at
+<code>-l|--list</code> or <code>-f|--listfile</code>).
+
+     <br><dt><code>-e, --environment &lt;</code><i>environmental variable name</i><code>&gt;</code><dd>Name of an environmental variable which is set to the respective
+parameter (taken from the command line or the parameter file)
+before each execution and can be read from the program or shell script. 
+In shells like <code>/bin/bash</code>, such environmental variables can
+easily be read as if they would be a normal shell variable (see
+the examples also).
+
+     <br><dt><code>-n, --number &lt;</code><i>number of parallel processes</i><code>&gt; | </code><i>auto</i><code> | </code><i>managed</i><code> | </code><i>ncpu</i><dd>The maximal number of processes running simultaneously. 
+By default (omitting <code>-n|--number</code> or specifying <code>-n|--number</code> <i>auto</i>)
+the program tries to connect to a local hypervisor which keeps track
+the resources of the system (see sec. Hypervisor Mode for more details). 
+If the connection to the local hypervisor failed, the program
+derives the number of available processing units on the local host
+using the content of <code>/proc/cpuinfo</code> or other system-specific method
+(on operating systems with different kernel than Linux). 
+If the argument of <code>-n|--number</code> is <i>managed</i>, <code>pexec</code>
+searches only for hypervisor and terminates with a non-zero exits status
+if the connection is failed. If the argument for <code>-n|--number</code> is
+<i>ncpu</i>, the program does not try to connect to the hypervisor (even
+if it is running) but uses the available information
+(<code>/proc/cpuinfo</code> or other system-specific method)
+to figure out the number of processing units.
+
+     <br><dt><code>-C, --control [</code><i>&lt;host&gt;</i><code>:]</code><i>&lt;port&gt;</i><code>|</code><i>&lt;path&gt;</i><dd>This option specifies the control port of a hypervisor which is
+used to control the number of simultaneously run tasks. 
+By default, this is the UNIX doman socket <code>/tmp/pexec.sock</code>. 
+If the specified port is a single number, <code>pexec</code> connects to the
+given port on the localhost, if a host is specified, the program
+connects to the given host and port; otherwise if it is a valid
+path, <code>pexec</code> connects to that UNIX domain socket. Note that
+the hypervisor socket does not have a default port number, i.e. 
+the port argument is mandatory after the host name. 
+See sec. Hypervisor Mode for more details.
+
+     <br><dt><code>-p, --list &lt;</code><i>space separated list of parameters</i><code>&gt; [-p ...]</code><dd>The single-argument form of main parameter list: each switch can accept
+one command line argument, thus if more than one parameter is defined
+after a single <code>-p</code> or <code>--list</code> option, the delimiter whitespace
+should be escaped somehow. Note that if there are more than one shell commands
+to be executed, the total number of parameters should be the same
+as the number of the individual shell commands or no parameters
+should be declared.
+
+     <br><dt><code>-r, --parameters &lt;</code><i>list of parameters up to the next switch</i><code>&gt; [-r ....]</code><dd>The multiple-argument form of the main parameter list: each switch
+can be followed by multiple arguments up to the next switch, i.e. the
+nearest command line argument which begins with at least a single dash. 
+Note that if in either of the arguments there is a space (or
+there are more spaces), such arguments will be splitted among the delimiting
+whitespaces. Note also that the parameter specifications by
+<code>-p|--list</code> and <code>-r|--parameters</code> can be mixed, depending
+on the actual problem or convenience. See also some notes
+below at <code>-f|--listfile</code>.
+
+     <br><dt><code>-f, --listfile &lt;</code><i>file containing the parameters</i><code>&gt;</code><dd>The main parameter list file. The parameters are read line by
+line while the parts of the file after a '#' (hashmark) are treated
+as comments. By default, the parameter is the first whitespace
+delimited column of the line if the line is not empty (or fully commented
+out). The parameters can be gathered from another column (see
+<code>-w|--column</code>) or the complete line can be threaded as a single
+parameter (see <code>-t|--complete</code>). If the parameters are read from
+a single column and some of the parameters are wanted
+to contain space(s), it can be put between double quotation marks ("..."). 
+Note that if there are more than one shell commands
+to be executed, the total number of parameters should be the same
+as the number of the individual shell commands or no parameters
+should be declared. Note also that the parameters can only be defined
+from command line <i>or</i> from this list file, i.e. <code>-f|--listfile</code>
+and <code>-p|--list|-r|--parameters</code> cannot be mixed.
+
+     <br><dt><code>-w, --column &lt;</code><i>column index</i><code>&gt;</code><dd>The column from where the parameters should be taken if they are read
+from a parameter file (see <code>-f|--listfile</code> above). If the given
+column is not exist in the current line, that line will silently be omitted.
+
+     <br><dt><code>-t, --complete</code><dd>Threat the whole line as a single parameter if the parameters are
+read from a file. Empty lines and all parts in the line after a '#'
+(hashmark) are omitted. Note that contrary to the argument splitting
+near <code>-r|--parameters</code> (or <code>-p|--list</code>), the content
+of a line won't be splitted into distinct parameters even if there
+are whitespaces.
+
+     <br><dt><code>-z, --nice &lt;</code><i>nice</i><code>&gt;</code><dd>Sets the scheduling priority of <code>pexec</code> and all children (executed
+processes) to the priority defined by the nice value.
+
+     <br><dt><code>--</code><dd>A marker after when the command begins. This is optional but useful
+to limit the parameter list of <code>-r|--parameters</code> or
+when the command itself begins with a literal '<i>-</i>' (dash) character (the
+latter is a rear case, as one can expect). This marker can also be used
+to emphasize the (beginning of the) command itself.
+
+</dl>
+
+<h3 class="section">2.2 Redirecting standard input, output and error</h3>
+
+     <dl>
+<dt><code>-i, --input &lt;</code><i>input file format</i><code>&gt;</code><dd>The name of the input file which is used for redirecting the standard
+input. If this argument is omitted, the standard input will be empty
+(i.e. /dev/null) unless the other two standard file redirection specifications
+are also omitted <i>and</i> there is not more than one parameter;
+in this case the standard streams are inherited by this single executed
+process. If the input file argument is a single existing file, all command
+execution processes will use the same file for input. If the argument
+contains the format elements <i>%s</i> and <i>%d</i>, these are replaced
+to the respective parameter name or the sequence number of the parameter
+(which is between 1 and the total number of parameters).
+
+     <br><dt><code>-o, --output &lt;</code><i>output file format</i><code>&gt;</code><dd>The name of the output file which is used for redirecting the standard
+output. If this argument is omitted, the standard output will be
+swallowed (unless the other two redirections are also omitted,
+see <code>-i|--input</code> for this case). 
+If the argument is a single file, all command
+execution processes writes their output to this single file. If
+the argument is a single dash or <code>-1</code>, all of the standard outputs are
+gathered to the invoker's standard output. If the argument is
+<code>-2</code>, the standard outputs are gathered to the standard error
+of the invoker. 
+If the argument contains the format elements <i>%s</i> or <i>%d</i>,
+these are replaced to the respective parameter name and the standard
+output will be a different file for each process. Note that in the
+second case, when the output file is a single, non-formatted file name,
+the outputs are collected via pipes and there is no guarantee for
+subsequent data order, even the outputs of different processes can be
+mixed (moreover, if the output is ASCII text, parts of lines can also
+be mixed). This means that the processes will feel their standard outputs
+as pipes not as regular files. Note also that if only <i>I%s</i> is
+used in the formatted file name, the parameter list should contain
+unique parameters, unless some of the output files will be lost and/or
+written in parallel, yielding unexpected result.
+
+     <br><dt><code>-u, --error, --output-error &lt;</code><i>output error file format</i><code>&gt;</code><dd>The name of the output file which is used for redirecting the standard
+error. All of the properties of the standard error redirection mechanism
+is the same as for the standard output, see <code>-o|--output</code> above
+for a more detailed explanation. The only exception is the single dash:
+specifying a single dash to <code>-u|--error</code> results that the
+standard errors are going to be collected to the standard error of the invoker. 
+To redirect the errors to the standard output, use <code>-1</code> as an argument.
+
+     <br><dt><code>-R, --normal-redirection</code><dd>This is equivalent to specifying <code>--output -</code> <i>and</i> <code>--error -</code>
+<i>and</i> <code>--input /dev/null</code>. 
+Since redirecting the <i>same</i> standard input to all of the executed commands
+is nearly meaningless in a parallel environment, this argument implies
+an expectable behaviour, i.e. the standard output and error streams
+of the commands are gathered to the invoker's standard output.
+
+     <br><dt><code>-a, --output-format &lt;</code><i>Ioutput line format</i><code>&gt;</code><dd>The format of the final standard output redirection if the output of
+all of the processes are gathered into the same file. The format
+can contain any character, while the <i>%s</i> and <i>%d</i> format
+elements are replaced as it was written in <code>-i|--input</code>. The
+line itself without the trailing newline character is represented
+by <i>%l</i>. Extra characters (e.g. tabulators, newlines) can also
+be inserted using the well-known escape sequences. Note that
+the trailing newline is always set implicitly unless it is disabled
+by <code>-x|--omit-newlines</code>. The line buffering yielded by the simple
+format of <i>%l</i> can also
+be useful if all of the standard outputs (or errors) are collected in a single
+file and the invoker wants to avoid the inter-line confusion of output
+(i.e. if this redirection formatting is omitted, no line buffering
+is done at all).
+
+     <p>The <code>printf</code>-like alignment syntax can also be used near <i>%s</i>,
+<i>I%l</i> and <i>%d</i> (both in the post-formatting and in the redirection
+file name formats): the number before the period indicates the minimum size
+and its sign refers to the alignment (positive: right alignment, negative: left
+alignment) while the number after the period indicates the minimum number
+of padding zeroes for numerical values. E.g the <i>%5.3d</i> would yield
+<i>" -042"</i> for -42.
+
+     <br><dt><code>-b, --error-format &lt;</code><i>error line format</i><code>&gt;</code><dd>The same final redirection format for the standard error. 
+See <code>-a|--output-format</code> for more details.
+
+     <br><dt><code>-x, --omit-newlines</code><dd>If the final redirection of the standard output or error are re-formatted
+using <code>-a|--output-format</code> and/or <code>-b|--error-format</code>, the
+trailing newlines are disabled and only written if specified directly
+using '<i>\n</i>'.
+
+     <p>.PP
+Note that in the case when no redirection is specified <i>and</i> the
+number of the parameters is exactly one or less; the executed process
+will inherit the standard files directly from the invoker. Otherwise,
+if there is more than one parameter in the list, the redirection
+will be defined by the <code>-i|--input</code>, <code>-o|--output</code> and <code>-u|--error</code>
+options. It means if one of these options is omitted, the respecting standard
+stream will be redirected from/to <code>/dev/null</code>. In other words, if
+any of these redirection options is specified, the latter rules will
+define the redirection, independently of the number of the parameters.
+
+</dl>
+
+<h3 class="section">2.3 Execution using remote hosts</h3>
+
+<p>The execution on remote hosts is done using a remote shell which
+both builds a tunnel between the invoking and the remote host(s) and
+do the authentication and ensures the security (if a secure remote shell
+is used). It means that on the remote hosts(s) there should be:
+     <ul>
+<li>an appropriate daemon for the remote shell to connect to;
+<li>the appropriate version of <code>pexec</code> which is started in daemon mode;
+<li>and the same file structure if the executed command rely on some files
+(see below the option <code>-k|--local-files</code> for more details about
+this issue). 
+</ul>
+   The same file structure which might be required the script can be ensured by
+an NFS or other types of network filesystem mounts. Note that in this case it
+is highly crucial since it is not determined which parameter is executed
+on which host. I.e. the executed script and the underlying filesystem should
+ensure the same result on every single host; otherwise one can get
+unexpected results.
+
+     <dl>
+<dt><code>-g, --remote-shell "&lt;</code><i>remote_shell</i><code>&gt; [&lt;</code><i>arguments</i><code>&gt;]"</code><dd>The name or full path of the remote shell to be used for building the
+tunnel between the local and the peer host(s). The default
+remote shell is <code>/usr/bin/ssh</code> with no extra arguments. Note that
+if additional arguments are defined for the remote shell,
+the whole argument of the switch should be escaped somehow (e.g. put
+between quotation marks). The connection and authentication are performed
+sequentially <i>before</i> executing anything and only once for each host:
+if the the authentication requires interactivity (e.g. typing a password), it
+is also done before the whole procedure starts.
+
+     <br><dt><code>-n, --number &lt;</code><i>hostspec</i><code>&gt;:[&lt;</code><i>processes</i><code>&gt;],...,[&lt;</code><i>processes</i><code>&gt;]</code><dd>This more sophisticated form of the <code>-n|--number</code> option is used
+to specify a comma-separated list of names and expected capacities
+of the remote hosts used for parallel execution. 
+The <i>hostspec</i> argument is the host specification
+argument passed directly to the remote shell which should be capable
+to understand it. In the most cases, it is simply the name of the
+peer machine, in the case of <code>ssh</code>, the username also can be
+passed using the well-known <i>username@hostname</i> form. 
+The host specification must always be followed by a literal colon ('<i>:</i>'). 
+Optionally, the maximum number of processes to run on that host can
+follow the colon. If it is omitted, the maximum number of processes
+are determined on the peer side automatically (yielding the same number
+of processes as it is determined by <code>--number</code> <i>auto</i>, see above),
+moreover the literal <i>auto</i>, <i>managed</i> and <i>ncpu</i> arguments
+can also be used, like in the case of local host parallelization. 
+The number of processes executed on the invoker's host can simply be
+specified by a single positive number, or by one of the
+keywords <i>auto</i>, <i>managed</i> and <i>ncpu</i> (just in the case
+of simple local host execution).
+
+     <p>Note that the host specifications are additive, i.e. if the same machine
+(including the local one when the <i>hostspec</i> and its colon is omitted)
+is defined more than once, the maximum number of processes are added. 
+It can yield unexpected results if the number is omitted after the colon,
+i.e. it is determined automatically, in this case the automatically
+determined maximum number of processes are also added, yielding a
+large load.
+
+     <br><dt><code>-k, --local-files [TBD]</code><dd>If this option is enabled, the remote daemons will read or store the
+redirected standard input, output and error files on the local side. 
+Otherwise (by default), these files are read from/stored to the invoker's host
+and tunneled to/from the peer.
+
+     <p>Note that if the redirected files are parameter-specific <i>and</i>
+tunneled to/from the remote hosts, then these files 1/
+on the invoker's host are seen as regular files;
+2/ on the remote hosts are seen as pipes. Otherwise, if the redirection
+is done from/to a single file, both the local and remote hosts will
+see their standard outputs and errors as pipes but the standard input
+is still a regular file on the local side and a pipe on the remote side.
+
+     <br><dt><code>-P, --pexec &lt;</code><i>pexec-path</i><code>&gt;</code><dd>The full path of the <code>pexec</code> program on the remote hosts. If this
+option is omitted, the invoker tries to figure out from the invoking
+syntax (see <i>argv[0]</i>) and the current path. This issue can be a bottleneck
+if the program is installed differently on the hosts since the remote shells
+executes their commands in non-interactive and/or non-login modes which
+might result different paths.
+
+     <br><dt><code>-T, --tunnel</code><dd>If this option is the first in the positional argument list of <code>pexec</code>,
+the program will start in tunnel daemon mode. This parameter is not used during
+the regular usage but used by <code>pexec</code> itself to start daemons
+via the remote shell tunnels.
+
+   </dl>
+
+<h3 class="section">2.4 Remote control, mutual exclusions and atomic command execution</h3>
+
+<p>Running instances of <code>pexec</code> can be controlled remotely to gather
+some status information of the paralleled execution and implement
+mutual exclusions.
+
+     <dl>
+<dt><code>-y, --bind </code><i>inet</i><code>|</code><i>unix</i><code>|</code><i>&lt;port&gt;</i><code>|</code><i>/&lt;path&gt;</i><dd>This option lets <code>pexec</code> to be remote controlled via internet
+(AF_INET family sockets) or via UNIX domain sockets. If the
+literal <i>inet</i> or <i>unix</i> is specified as an argument
+for this switch, the port or the path of the named socket will be
+assigned randomly; but both of them can be specified directly by
+a single integer number (referring to an INET port) or by an absolute
+path (beginning with a literal slash, referring to an UNIX domain named
+socket). In all cases, the currently assigned port or path will be
+reported in the logs and will be exported as an environmental
+variable with the name of <i>PEXEC_REMOTE_PORT</i> (by default,
+see also <code>-E|--pexec-connection-variable</code>). This environmental
+variable is inherited by all processes executed on the local host
+<i>and</i> tunneled to the remote hosts too and inherited by the
+all of the processes executed by <code>pexec</code> daemons.
+
+     <br><dt><code>-E, --pexec-connection-variable &lt;</code><i>environment_variable_name</i><code>&gt;</code><dd>This option overrides the default environment name <i>PEXEC_REMOTE_PORT</i>
+to the specified value, which is used by the
+<code>-p|--connect</code> <i>auto</i> combination to determine the control
+socket with which the running <code>pexec</code> instance can be controlled
+or polled. Note that in practice there is no need to change this
+variable since separate <code>pexec</code> jobs uses different environment space
+(i.e. a process which changes an environment variable affects the
+variables of its childrend only).
+
+     <br><dt><code>-j, --remote</code><dd>If this option is the first in the argument list of <code>pexec</code>, then
+the program can be used to control and poll the status of
+other running instances of <code>pexec</code> <i>if</i> these other running
+ones were started with enabling the remote control by <code>-y|--bind</code>
+(see above).
+
+     <br><dt><code>-p, --connect </code><i>auto</i><code>|[</code><i>&lt;host&gt;:</i><code>]</code><i>&lt;port&gt;</i><code>|</code><i>/&lt;path&gt;</i><dd>With this option one can specify the <code>pexec</code> instance which is to be
+remote controlled. Since connecting to something is mandatory for
+doing remote control, omitting this option is equivalent with
+<code>--connect auto</code> and in this case the program gets the remote
+port information using the environmental variable <i>PEXEC_REMOTE_PORT</i>
+(by default, see also <code>-E|--pexec-connection-variable</code>). 
+If this environmental variable is not exist, the connection will fail
+and <code>pexec</code> exits with an error.
+
+     <p>The <code>pexec</code> instance to be remote controlled can also be specified
+directly by specifying either the INET host and port
+(in this case if host is omitted, <i>localhost</i> is used as default
+but the port number is mandatory since there is no default port)
+or the absolute path of the UNIX domain socket. Note that in the most
+shells <code>--connect auto</code> is equivalent to
+<code>--connect $PEXEC_REMOTE_PORT</code> (by default, see also
+<code>-E|--pexec-connection-variable</code>) since the environmental variables
+can be referred as a normal shell variable.
+
+     <br><dt><code>-t, --status</code><dd>This option prints the actual status of the running jobs in a human-readable
+form to the invoker's standard output. It can be used for polling
+the progress of the whole paralleled execution.
+
+     <br><dt><code>-l, --lock, --mutex-lock </code><i>&lt;mutex-name&gt;</i><br><dt><code>-u, --unlock, --mutex-unlock </code><i>&lt;mutex-name&gt;</i><dd>With these options mutual exclusions (<i>mutex</i>es)
+can easily be implemented: if no one else performs the same locking, the
+program exists immediately, otherwise it would block until
+someone else releases the mutex (i.e. by calling <code>-u|--unlock|--mutex-unlock</code>
+with the mutex of the same name).
+
+     <br><dt><code>-m, --mutex </code><i>&lt;mutex-name&gt;</i><br><dt><code>-d, --dump </code><i>&lt;filename&gt;</i><code> | -s, --save </code><i>&lt;filename&gt;</i><dd>If one of the <code>-d|--dump</code> or <code>-s|--save</code>
+options are specified, the program prints the content of the file
+to standard output or stores the data read from the standard input to the
+specified file, respectively (like <code>cat</code> or <code>tee</code> with the
+difference that <code>-s|--save</code> does not copy the content to standard output
+like <code>tee</code> does so). If a mutex is specified by <code>-m|--mutex</code>,
+<code>pexec</code> locks the mutex <i>before</i> the dump/save operation and
+unlock <i>after</i> it is done, i.e. <code>pexec -j -d something.txt -m mymutex</code>
+is equivalent with
+<code>( pexec -j -l mymutex &amp;&amp; cat something.txt &amp;&amp; pexec -j -u mymutex )</code>.
+
+     <br><dt><code>-m, --mutex </code><i>&lt;mutex-name&gt;</i><br><dt><code>-a, --atomic [-c|--shell-command] [--] </code><i>&lt;command&gt;</i><dd>With this option, an atomic execution respective to a given mutex
+(specified by <code>-m|--mutex</code>) of the command can be performed. 
+For example, <code>pexec -j -m mymutex -a cat something.txt</code>
+is equivalent with
+<code>( pexec -j -l mymutex &amp;&amp; cat something.txt &amp;&amp; pexec -j -u mymutex )</code>.
+
+   </dl>
+
+<p class="noindent">Note that if the lock and unlock operations are in the same pipeline
+<i>and</i> these operations use the same mutex, the invoker should
+ensure that the locking call exists before the unlock request could start
+(otherwise the whole parallel execution blocks infinitely). 
+Like so, if dump and a save operations with the same mutex present
+in the same pipeline, the intermediate programs should delay the
+data propagation: the save part must not get any data until the
+dump part flushes everything to its standard output
+(otherwise even this single pipeline blocks infinitely).
+
+   <p>Note also that the whole remote controlling procedure is transparent to the
+remote host execution, i.e. every necessary parameter,
+environmental variable and mutex lock/unlock request will propagate
+via the remote shell tunnel. Therefore the end-user won't see any difference
+(and do not have to bother with these details in his final invocation)
+between the purely local and remote execution processes.
+
+<h3 class="section">2.5 Hypervisor mode</h3>
+
+<p>The program <code>pexec</code> is capable to run in hypervisor mode. 
+The hypervisor daemon acts as a resource controller, i.e. other
+running instances of <code>pexec</code> ask the hypervisor if there is
+available resource or not. The main purpose of the hypervisor
+daemon is to balance the usage between concurrent running <code>pexec</code>
+instances in order to avoid unexpectedly high load.
+
+     <dl>
+<dt><code>-H, --hypervisor [</code><i>start</i><code>|</code><i>stop</i><code>]</code><dd>This option starts <code>pexec</code> in hypervisor mode. By default, the
+hypervisor is not detached from the terminal. If <i>start</i> is
+given, the deamon is detached and put into background. Such
+running daemons can be stopped using the <i>stop</i> argument.
+
+     <br><dt><code>-C, --control </code><i>&lt;port&gt;</i><code>|</code><i>/&lt;path&gt;</i><dd>This option specifies the control port used by the hypervisor to listen
+for connections. By default, this is the UNIX doman socket
+<code>/tmp/pexec.sock</code>. If the specified port is a single number,
+<code>pexec</code> creates an INET server socket, otherwise if it is a valid
+path, an UNIX domain socket is created.
+
+     <br><dt><code>-n, --number &lt;</code><i>number of parallel processes</i><code>&gt; | </code><i>auto</i><code> | </code><i>ncpu</i><dd>The maximum number of parallel processes which is allowed to be executed
+simultaneously by all of the connected <code>pexec</code> programs together. 
+By default, <code>pexec</code> uses <code>/proc/cpuinfo</code> (or other system-dependent
+way) to figure out the number of available processing units and use this
+number as the maximum of parallel processes.
+
+     <br><dt><code>-l, --load, --use-load &lt;</code><i>load</i><code>&gt;</code><dd>This option limits the number of processes to yield a normalized
+load less than unity, still keeping the number of simultaneous
+processes not to be greater than the value specified by <code>-n|--number</code>. 
+The normalized load is the actual load (averaged on 1, 5
+or 15 minutes) divided by the maximum number of parallel processes. 
+The argument of this switch can be <i>0</i>, <i>1</i> or <i>2</i>,
+or <i>1min</i>, <i>5min</i> or <i>15min</i>, respectively. The <code>pexec</code>
+hypervisor uses the specified time averaged load.
+
+   </dl>
+
+<h3 class="section">2.6 Logging</h3>
+
+     <dl>
+<dt><code>-L, --log &lt;</code><i>log file</i><code>&gt;</code><dd>The name of the log file where the details of the parallel executions
+are written. By default, no such log file is created.
+
+     <br><dt><code>-W, --log-level &lt;</code><i>log level</i><code>&gt;</code><dd>The log level, an integer number between 0 and infinity. The more
+large this number is, the more information is written to the log file. 
+If the log level is zero, no log file is created. The default log level
+is 1. If the log level is specified directly, but <code>-l|--log</code> is omitted,
+the log will be written to the invoker's standard error (maybe in parallel
+with other messages gathered by <code>-u|--error -</code>. If neither
+<code>-l|--log</code> nor <code>-v|--log-level</code> is specified, logging does not occur.
+
+     <br><dt><code>-V, --verbose</code><dd>Increase the log level (see <code>-v|--log-level</code>) by one. For example,
+<code>--log-level 2</code> is equivalent to <code>-V -V</code>.
+
+</dl>
+
+<h2 class="chapter">3 Examples</h2>
+
+<h3 class="section">3.1 Identical execution</h3>
+
+<p>If all options are omitted, only the command and its arguments are specified
+after <code>pexec</code>, the program simply runs the given process, as it
+would happen without <code>pexec</code>:
+
+<pre class="verbatim">
+	pexec ssh -X -l user host
+</pre>
+
+<h3 class="section">3.2 Calculate the square root of some numbers</h3>
+
+<p>Using directly the output of the command <code>seq</code>, let us calculate
+the square root of the first ten integer numbers and store the results
+in separate files. For the calculation itself, we use the program <code>bc</code>, a
+command-line driven arbitrary precision calculator:
+
+<pre class="verbatim">
+	pexec -o sqrt-%s.dat -p "$(seq 10)" -e NUM -n 4 -c -- \
+	  	'echo "scale=10000;sqrt($NUM)" | bc'
+</pre>
+Here we explicitly used 4 processors. The number itself is passed to the
+shell-script via the environmental variable <i>NUM</i>.
+
+<h3 class="section">3.3 Sort some files</h3>
+
+<p>This example sorts some files which matches the a pre-defined search pattern. 
+The sorted versions of the files are stored in the files with the same
+names but the suffix <code>.sort</code> is always appended.
+
+<pre class="verbatim">
+	pexec -p "$(ls myfiles*.ext)" -i %s -o %s.sort -- sort
+</pre>
+Here we used explicit redirection from the input files to the output files. 
+Since the command itself is very simple, it is wise to put the dash-dash
+before the command to make the reading of the whole command easier.
+
+<h3 class="section">3.4 Detect stars on astronomical images</h3>
+
+<p>In this example we assume that we have a list file of base names
+of astronomical images, i.e. the images themselves have the base name
+followed by the extension <code>*.fits</code>. Since we not expect so much errors,
+the standard errors are collected in a single file (<code>star.log</code>, namely):
+
+<pre class="verbatim">
+	pexec -f image.list -n auto -e B -u star.log -c -- \
+	  	'fistar $B.fits -f 100 -F id,x,y,flux -o $B.star'
+</pre>
+The program <code>fistar</code> can be more tuned, depending on the actual problem. 
+The base name of the image implies the base name of the star detection
+output (<code>*.star</code>). Here also an environmental variable, <i>B</i> was
+used to pass the varied information, i.e. the basename of the images.
+
+<h3 class="section">3.5 Convert all PNG images in the current directory to JPEG format</h3>
+
+<p>If all of our images (<code>*.png</code>) have a name which does not start with a dash,
+we can use the <code>-r|--parameters</code> switch too:
+
+<pre class="verbatim">
+	pexec -r *.png -e IMG -c -o - -- \
+	  	'convert $IMG ${IMG%.png}.jpeg ; "echo $IMG: done"'
+</pre>
+For the conversion the ImageMagick tool <code>convert</code> is used which
+simply figures out the format from the extensions. The trailing <code>echo</code>
+just report the images which are ready after conversion, these
+"reports" are collected via the standard output and printed for the
+invoker due to <code>-o -</code>. Another realization, using the NetPBM package:
+
+<pre class="verbatim">
+	pexec -r *.jpg -i %s -o %s.png -c 'jpegtopnm | pnmtopng'
+</pre>
+
+<h3 class="section">3.6 Rescale all JPEGimages in the current directory, using mutexes:</h3>
+
+<p>In this example a simple usage of mutexes is demonstrated. 
+The usage of mutexes prevents a high (peak-like) disk access
+if many processes would try
+to read/write the same disk simultaneously:
+
+<pre class="verbatim">
+	pexec -n 8 -r *.jpg -y unix -e IMG -c \
+	 	'pexec -j -m blockread -d $IMG | \
+ 		 jpegtopnm | pnmscale 0.5 | pnmtojpeg | \
+	 	 pexec -j -m blockwrite -s th_$IMG'
+</pre>
+In the above example an UNIX domain socket is used to for the communication
+between the main <code>pexec</code> program and the remote control calls.
+
+<h2 class="chapter">4 Additional information</h2>
+
+<h3 class="section">4.1 Bugs</h3>
+
+     <ul>
+<li>The <code>-k|--local-files</code> option is still not implemented.
+
+     <li>Actually, in the
+cases when the execution of the process fails (i.e. the program or shell
+does not exists, access is denied or things like that),
+the child of <code>pexec</code> prints an error to standard error and exits,
+therefore unless the standard error is gathered somehow (see <code>-u|--error</code>),
+the invoker won't be informed in such cases. And even if so, the invoker
+is unable to distinguish this from the case when the successfully
+executed process prints directly the same message to its standard error. 
+This is not a real bug but this behavior is planned to be changed in the
+future.
+
+     <li>Another strange cases are when the child process is explicitly terminated,
+killed or stopped/continued. These cases are handled somehow but should
+be fine-tuned by the invoker in the further releases.
+
+     <li>The logging now is still poorish, it should also be improved
+(esp. to log the above unexpected shutdowns).
+
+</ul>
+
+<h3 class="section">4.2 Version</h3>
+
+<p>This manual page describes <code>pexec</code> version <code>1.0rc5</code>.
+
+<h3 class="section">4.3 Copyright</h3>
+
+<p>This software was written by <b>Andras Pal</b>. The core part
+was written while working for the Hungarian-made Automated Telescope (HAT)
+project to make the data processing more easier and therefore find
+many-many extrasolar planets. 
+See more information about this project: <code>http://hatnet.hu</code>. 
+Another internal libraries (e.g. <code>numhash.[ch]</code> were primarily
+written for other projects. Send bug reports, comments and remarks
+to <code>apal@szofi.elte.hu</code> or <code>apal@cfa.harvard.edu</code>.
+
+   <p>This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+   <p>This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+   <p>This documentation: copyright (C) 2007, 2008; Andras Pal. 
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.2
+or any later version published by the Free Software Foundation;
+with no Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts. 
+A copy of the license is included in the section entitled "GNU
+Free Documentation License".
+
+</body></html>
+
