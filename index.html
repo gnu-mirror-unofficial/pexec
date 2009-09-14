@@ -1,6 +1,13 @@
 <html><head><title>pexec</title>
 
-<script type="text/javascript"></script>
+<script language="JavaScript" type="text/javascript">
+<!--
+function submit_donations()
+{
+ document.donation_form.submit(); 
+}
+-->
+</script>
 
 <style type="text/css">
 </style></head><body>
@@ -29,7 +36,7 @@ for more details. See a brief Hungarian description of the program
 <a href="pexec-brief.hu.html">here</a>.
 
 </p><p align="justify">
-The actual version of the program package is <tt>1.0rc7</tt>.
+The actual version of the program package is <tt>1.0rc8</tt>.
 
 </p><p align="justify">
 You may browse the package directory 
@@ -38,9 +45,22 @@ You may browse the package directory
 See the <a href="http://gnu.org/">GNU</a> summary page of this project
 <a href="https://savannah.gnu.org/projects/pexec/">here</a>. The
 latest version of the program source package is
-<a href="http://ftp.gnu.org/gnu/pexec/pexec-1.0rc7.tar.gz">pexec-1.0rc7.tar.gz</a>.
+<a href="http://ftp.gnu.org/gnu/pexec/pexec-1.0rc8.tar.gz">pexec-1.0rc8.tar.gz</a>.
 Here is another <a href="http://szofi.elte.hu/%7Eapal/utils/pexec">mirror</a>
 of the package directory. 
+
+</p><p align="justify">
+<form name="donation_form" action="https://www.paypal.com/cgi-bin/webscr" method="post">
+<input type="hidden" name="cmd" value="_donations">
+<input type="hidden" name="business" value="apal@szofi.net">
+<input type="hidden" name="item_name" value="Donation for the development of PEXEC">
+<input type="hidden" name="currency_code" value="USD">
+Please consider making
+<a href="javascript:submit_donations();">donations</a>
+to the author (via <a href="http://www.paypal.com">PayPal</a>)
+or support the <a href="http://www.gnu.org">GNU</a> project
+via the <a href="http://donate.fsf.org">FSF</a>.
+</form>
 
 </p><hr>
 (C) 2007, 2008, 2009; Pal, Andras (<i>apal.nosp@m.{szofi.net|users.sf.net|szofi.elte.hu}</i>)
